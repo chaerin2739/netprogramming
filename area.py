@@ -1,12 +1,12 @@
 import math
 
 def cir_area(n):
-    area = n*n*3.14
+    area = n*n*math.pi
     return area
 
 
 def cir_circum(r):
-    a = r * 2 *3.14
+    a = r * 2 *math.pi
     return a
 
 av=cir_area(3.5)
