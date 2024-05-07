@@ -1,36 +1,58 @@
 import socket
-import cv2
-import numpy as np
+import mimetypes
 
-BUF_SIZE = 8192
-LENGTH = 10
-videoFile = 'KakaoTalk_20240507_120353330.mp4' #현재 폴더에 있는 비디오 파일. 다른 경로에 있을 경우, 정확한 경로를 입력해야 함
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind(('', 5000))
-sock.listen(5)
+def run_web_server(host='', port=80):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((host, port))
+        server_socket.listen(1)
 
-while True:
-    csock, addr = sock.accept()
-    print('Client is connected')
-    cap = cv2.VideoCapture(videoFile)
+        print(f"웹 서버가 {port} 포트에서 시작되었습니다...")
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            temp = csock.recv(BUF_SIZE) #'start' 수신
-            if not temp:
-                break
-            result, imgEncode = cv2.imencode('.jpg', frame)
-            data = np.array(imgEncode)
-            byteData = data.tobytes()
-            csock.send(str(len(byteData)).zfill(LENGTH).encode()) #10개 문자열로 표현된 길이 전송
+        while True:
+            client_socket, client_address = server_socket.accept()
+            print(f"클라이언트 {client_address}가 연결되었습니다.")
 
-            temp = csock.recv(BUF_SIZE) #'image' 수신
-            if not temp:
-                break
+            with client_socket:
+                request_line = client_socket.recv(1024).decode()
+                print("Received request line:", request_line)
 
-                csock.send(byteData) #이미지 데이터 전송
-            else: break
-    cap.release()
-    cv2.destroyAllWindows()
-    csock.close()
+                parts = request_line.split()
+                if len(parts) < 2:
+                    print("Invalid request")
+                    continue
+
+                filename = parts[1].lstrip("/")
+                print("Requested file:", filename)
+
+                try:
+                    if filename == 'index.html':
+                        f = open(filename, 'r', encoding='utf-8')
+                        mime_type = 'text/html'
+                        data = f.read()
+                        f.close()
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: {mime_type}\r\n\r\n{data}"
+                        client_socket.sendall(response.encode('utf-8'))
+                    elif filename == 'iot.png':
+                        f = open(filename, 'rb')
+                        mime_type = 'image/png'
+                        data = f.read()
+                        f.close()
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: {mime_type}\r\n\r\n".encode() + data
+                        client_socket.sendall(response)
+                    elif filename == 'favicon.ico':
+                        f = open(filename, 'rb')
+                        mime_type = 'image/x-icon'
+                        data = f.read()
+                        f.close()
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: {mime_type}\r\n\r\n".encode() + data
+                        client_socket.sendall(response)
+                    else:
+                        raise FileNotFoundError()
+
+                except FileNotFoundError:
+                    error_message = "<HTML><HEAD><TITLE>Not Found</TITLE></HEAD><BODY>Not Found</BODY></HTML>"
+                    response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " + str(len(error_message)) + "\r\n\r\n" + error_message
+                    client_socket.sendall(response.encode('utf-8'))
+
+if __name__ == "__main__":
+    run_web_server()
