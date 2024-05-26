@@ -1,34 +1,33 @@
 import socket
 import threading
 
-def receive_handler(client_socket):
+def handler(sock):
     while True:
         try:
-            msg = client_socket.recv(1024).decode()
-            print(msg)
-        except ConnectionError:
-            print("서버와의 연결이 종료되었습니다.")
+            msg = sock.recv(1024)
+            if not msg:
+                break
+            print(msg.decode())
+        except:
             break
+    sock.close()
 
-def main():
-    server_address = ('localhost', 2500)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+svr_addr = ('localhost', 2500)
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect(svr_addr)
 
-    # 서버에 연결
-    client_socket.connect(server_address)
+my_id = input('ID를 입력하세요: ')
+sock.send(('[' + my_id + ']').encode())
 
-    my_id = input('ID를 입력하세요: ')
-    client_socket.send(('[' + my_id + ']').encode())
+th = threading.Thread(target=handler, args=(sock,))
+th.daemon = True
+th.start()
 
-    # 메시지 수신을 담당하는 스레드 시작
-    receive_thread = threading.Thread(target=receive_handler, args=(client_socket,))
-    receive_thread.daemon = True
-    receive_thread.start()
-
-    # 메시지 전송
+try:
     while True:
         msg = '[' + my_id + '] ' + input()
-        client_socket.send(msg.encode())
-
-if __name__ == "__main__":
-    main()
+        sock.send(msg.encode())
+except KeyboardInterrupt:
+    print("연결을 종료합니다.")
+finally:
+    sock.close()
